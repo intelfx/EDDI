@@ -70,6 +70,12 @@
     <Compile Include="AtmosphereComposition.cs" />
     <Compile Include="BlueprintMaterials.cs" />
     <Compile Include="BodyType.cs" />
+    <Compile Include="FssSignal.cs" />
+    <Compile Include="Properties\FssSignal.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>FssSignal.resx</DependentUpon>
+    </Compile>
     <Compile Include="ReserveLevel.cs" />
     <Compile Include="PlanetClass.cs" />
     <Compile Include="BodySolidComposition.cs" />
@@ -407,6 +413,11 @@
     <EmbeddedResource Include="Properties\ExplorationRatings.ja.resx" />
     <EmbeddedResource Include="Properties\FactionStates.ja.resx" />
     <EmbeddedResource Include="Properties\FederationRatings.ja.resx" />
+    <EmbeddedResource Include="Properties\FssSignal.resx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>FssSignal.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
     <EmbeddedResource Include="Properties\GameModes.ja.resx" />
     <EmbeddedResource Include="Properties\Governments.ja.resx" />
     <EmbeddedResource Include="Properties\LegalStatus.ja.resx" />

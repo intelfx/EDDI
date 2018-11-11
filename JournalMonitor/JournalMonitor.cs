@@ -1678,95 +1678,121 @@ namespace EddiJournalMonitor
                                     string option = JsonParsing.getString(data, "Option");
                                     long price = JsonParsing.getLong(data, "Cost");
 
-                                    if (option == "rebuy")
-                                    {
-                                        events.Add(new ShipRepurchasedEvent(timestamp, price) { raw = line });
-                                        handled = true;
-                                    }
-                                }
-                                break;
-                            case "NavBeaconScan":
+                                if (option == "rebuy")
                                 {
-                                    data.TryGetValue("NumBodies", out object val);
-                                    int numbodies = (int)(long)val;
-                                    events.Add(new NavBeaconScanEvent(timestamp, numbodies) { raw = line });
+                                    events.Add(new ShipRepurchasedEvent(timestamp, price) { raw = line });
+                                    handled = true;
                                 }
+                            }
+                            break;
+                        case "NavBeaconScan":
+                            {
+                                long systemAddress = JsonParsing.getLong(data, "SystemAddress");
+                                data.TryGetValue("NumBodies", out object val);
+                                int numbodies = (int)(long)val;
+                                events.Add(new NavBeaconScanEvent(timestamp, systemAddress, numbodies) { raw = line });
+                                handled = true;
+                            }
+                            break;
+                        case "FSSDiscoveryScan":
+                            {
+                                decimal progress = JsonParsing.getDecimal(data, "Progress"); // value from 0-1
+                                int bodyCount = JsonParsing.getInt(data, "BodyCount"); // number of stellar bodies in system
+                                int nonBodyCount = JsonParsing.getInt(data, "NonBodyCount"); // Number of non-body signals found
+                                events.Add(new FSSDiscoveryScanEvent(timestamp, progress, bodyCount, nonBodyCount) { raw = line });
+                                handled = true;
+                            }
+                            break;
+                        case "FSSSignalDiscovered":
+                            {
+                                FssSignal source = FssSignal.FromEDName(JsonParsing.getString(data, "SignalName")) ?? new FssSignal();
+                                source.fallbackLocalizedName = JsonParsing.getString(data, "SignalName_Localised");
+                                string spawningFaction = getFaction(data, "SpawningFaction") ?? Superpower.None.localizedName; // the minor faction, if relevant
+                                decimal? secondsRemaining = JsonParsing.getOptionalDecimal(data, "TimeRemaining"); // remaining lifetime in seconds, if relevant
+
+                                string spawningstate = JsonParsing.getString(data, "SpawningState");
+                                string normalizedSpawningState = spawningstate?.Replace("$FactionState_", "")?.Replace("_desc;", "");
+                                FactionState spawningState = FactionState.FromEDName(normalizedSpawningState) ?? new FactionState();
+                                spawningState.fallbackLocalizedName = JsonParsing.getString(data, "SpawningState_Localised");
+
+                                events.Add(new FSSSignalDiscoveredEvent(timestamp, source, spawningState, spawningFaction, secondsRemaining) { raw = line });
+                                handled = true;
+                            }
+                            break;
+                        case "BuyExplorationData":
+                            {
+                                string system = JsonParsing.getString(data, "System");
+                                long price = JsonParsing.getLong(data, "Cost");
+                                events.Add(new ExplorationDataPurchasedEvent(timestamp, system, price) { raw = line });
                                 handled = true;
                                 break;
-                            case "BuyExplorationData":
-                                {
-                                    string system = JsonParsing.getString(data, "System");
-                                    long price = JsonParsing.getLong(data, "Cost");
-                                    events.Add(new ExplorationDataPurchasedEvent(timestamp, system, price) { raw = line });
-                                    handled = true;
-                                    break;
-                                }
-                            case "SellExplorationData":
-                                {
-                                    data.TryGetValue("Systems", out object val);
-                                    List<string> systems = ((List<object>)val).Cast<string>().ToList();
-                                    data.TryGetValue("Discovered", out val);
-                                    List<string> firsts = ((List<object>)val).Cast<string>().ToList();
-                                    data.TryGetValue("BaseValue", out val);
-                                    decimal reward = (long)val;
-                                    data.TryGetValue("Bonus", out val);
-                                    decimal bonus = (long)val;
-                                    events.Add(new ExplorationDataSoldEvent(timestamp, systems, firsts, reward, bonus) { raw = line });
-                                    handled = true;
-                                    break;
-                                }
-                            case "USSDrop":
-                                {
-                                    string source = JsonParsing.getString(data, "USSType");
-                                    data.TryGetValue("USSThreat", out object val);
-                                    int threat = (int)(long)val;
-                                    events.Add(new EnteredSignalSourceEvent(timestamp, source, threat) { raw = line });
-                                }
+                            }
+                        case "SellExplorationData":
+                            {
+                                data.TryGetValue("Systems", out object val);
+                                List<string> systems = ((List<object>)val).Cast<string>().ToList();
+                                data.TryGetValue("Discovered", out val);
+                                List<string> firsts = ((List<object>)val).Cast<string>().ToList();
+                                data.TryGetValue("BaseValue", out val);
+                                decimal reward = (long)val;
+                                data.TryGetValue("Bonus", out val);
+                                decimal bonus = (long)val;
+                                events.Add(new ExplorationDataSoldEvent(timestamp, systems, firsts, reward, bonus) { raw = line });
                                 handled = true;
                                 break;
-                            case "Market": // Written when accessing the commodities market at a station, after market.json has been updated.
-                                { } // Do nothing with this event for now - we prefer the data from the Frontier Companion API.
+                            }
+                        case "USSDrop":
+                            {
+                                string source = JsonParsing.getString(data, "USSType");
+                                data.TryGetValue("USSThreat", out object val);
+                                int threat = (int)(long)val;
+                                events.Add(new EnteredSignalSourceEvent(timestamp, source, threat) { raw = line });
+                            }
+                            handled = true;
+                            break;
+                        case "Market": // Written when accessing the commodities market at a station, after market.json has been updated.
+                            { } // Do nothing with this event for now - we prefer the data from the Frontier Companion API.
+                            handled = true;
+                            break;
+                        case "MarketBuy":
+                            {
+                                long marketId = JsonParsing.getLong(data, "MarketID");
+                                string commodityName = JsonParsing.getString(data, "Type");
+                                CommodityDefinition commodity = CommodityDefinition.FromEDName(commodityName);
+                                if (commodity == null)
+                                {
+                                    Logging.Error("Failed to map cargo type " + commodityName + " to commodity definition", line);
+                                }
+                                int amount = JsonParsing.getInt(data, "Count");
+                                int price = JsonParsing.getInt(data, "BuyPrice");
+                                events.Add(new CommodityPurchasedEvent(timestamp, marketId, commodity, amount, price) { raw = line });
                                 handled = true;
                                 break;
-                            case "MarketBuy":
+                            }
+                        case "MarketSell":
+                            {
+                                long marketId = JsonParsing.getLong(data, "MarketID");
+                                string commodityName = JsonParsing.getString(data, "Type");
+                                CommodityDefinition commodity = CommodityDefinition.FromEDName(commodityName);
+                                if (commodity == null)
                                 {
-                                    long marketId = JsonParsing.getLong(data, "MarketID");
-                                    string commodityName = JsonParsing.getString(data, "Type");
-                                    CommodityDefinition commodity = CommodityDefinition.FromEDName(commodityName);
-                                    if (commodity == null)
-                                    {
-                                        Logging.Error("Failed to map cargo type " + commodityName + " to commodity definition", line);
-                                    }
-                                    int amount = JsonParsing.getInt(data, "Count");
-                                    int price = JsonParsing.getInt(data, "BuyPrice");
-                                    events.Add(new CommodityPurchasedEvent(timestamp, marketId, commodity, amount, price) { raw = line });
-                                    handled = true;
-                                    break;
+                                    Logging.Error("Failed to map cargo type " + commodityName + " to commodity definition", line);
                                 }
-                            case "MarketSell":
-                                {
-                                    long marketId = JsonParsing.getLong(data, "MarketID");
-                                    string commodityName = JsonParsing.getString(data, "Type");
-                                    CommodityDefinition commodity = CommodityDefinition.FromEDName(commodityName);
-                                    if (commodity == null)
-                                    {
-                                        Logging.Error("Failed to map cargo type " + commodityName + " to commodity definition", line);
-                                    }
-                                    int amount = JsonParsing.getInt(data, "Count");
-                                    int sellPrice = JsonParsing.getInt(data, "SellPrice");
+                                int amount = JsonParsing.getInt(data, "Count");
+                                int sellPrice = JsonParsing.getInt(data, "SellPrice");
 
-                                    long buyPrice = JsonParsing.getLong(data, "AvgPricePaid");
-                                    // We don't care about buy price, we care about profit per unit
-                                    long profit = sellPrice - buyPrice;
+                                long buyPrice = JsonParsing.getLong(data, "AvgPricePaid");
+                                // We don't care about buy price, we care about profit per unit
+                                long profit = sellPrice - buyPrice;
 
-                                    bool illegal = JsonParsing.getOptionalBool(data, "IllegalGoods") ?? false;
-                                    bool stolen = JsonParsing.getOptionalBool(data, "StolenGoods") ?? false;
-                                    bool blackmarket = JsonParsing.getOptionalBool(data, "BlackMarket") ?? false;
+                                bool illegal = JsonParsing.getOptionalBool(data, "IllegalGoods") ?? false;
+                                bool stolen = JsonParsing.getOptionalBool(data, "StolenGoods") ?? false;
+                                bool blackmarket = JsonParsing.getOptionalBool(data, "BlackMarket") ?? false;
 
-                                    events.Add(new CommoditySoldEvent(timestamp, marketId, commodity, amount, sellPrice, profit, illegal, stolen, blackmarket) { raw = line });
-                                    handled = true;
-                                    break;
-                                }
+                                events.Add(new CommoditySoldEvent(timestamp, marketId, commodity, amount, sellPrice, profit, illegal, stolen, blackmarket) { raw = line });
+                                handled = true;
+                                break;
+                            }
                         case "EngineerContribution":
                             {
                                 string name = JsonParsing.getString(data, "Engineer");
@@ -1803,15 +1829,15 @@ namespace EddiJournalMonitor
                                 handled = true;
                                 break;
                             }
-                            case "EngineerCraft":
-                                {
-                                    string engineer = JsonParsing.getString(data, "Engineer");
+                        case "EngineerCraft":
+                            {
+                                string engineer = JsonParsing.getString(data, "Engineer");
                                 long engineerId = JsonParsing.getLong(data, "EngineerID");
                                 string blueprintpEdName = JsonParsing.getString(data, "Blueprint");
                                 long blueprintId = JsonParsing.getLong(data, "BlueprintID");
 
-                                    data.TryGetValue("Level", out object val);
-                                    int level = (int)(long)val;
+                                data.TryGetValue("Level", out object val);
+                                int level = (int)(long)val;
 
                                 decimal? quality = JsonParsing.getOptionalDecimal(data, "Quality"); //
                                 string experimentalEffect = JsonParsing.getString(data, "ApplyExperimentalEffect"); //
@@ -1821,44 +1847,44 @@ namespace EddiJournalMonitor
                                 compartment.module = Module.FromEDName(JsonParsing.getString(data, "Module"));
 
                                 List<CommodityAmount> commodities = new List<CommodityAmount>();
-                                    List<MaterialAmount> materials = new List<MaterialAmount>();
-                                    if (data.TryGetValue("Ingredients", out val))
+                                List<MaterialAmount> materials = new List<MaterialAmount>();
+                                if (data.TryGetValue("Ingredients", out val))
+                                {
+                                    // 2.2 style
+                                    if (val is Dictionary<string, object> usedData)
                                     {
-                                        // 2.2 style
-                                        if (val is Dictionary<string, object> usedData)
+                                        foreach (KeyValuePair<string, object> used in usedData)
                                         {
-                                            foreach (KeyValuePair<string, object> used in usedData)
+                                            // Used could be a material or a commodity
+                                            CommodityDefinition commodity = CommodityDefinition.FromEDName(used.Key);
+                                            if (commodity.category != null)
                                             {
-                                                // Used could be a material or a commodity
-                                                CommodityDefinition commodity = CommodityDefinition.FromEDName(used.Key);
-                                                if (commodity.category != null)
-                                                {
-                                                    // This is a real commodity
-                                                    commodities.Add(new CommodityAmount(commodity, (int)(long)used.Value));
-                                                }
-                                                else
-                                                {
-                                                    // Probably a material then
-                                                    Material material = Material.FromEDName(used.Key);
-                                                    materials.Add(new MaterialAmount(material, (int)(long)used.Value));
-                                                }
+                                                // This is a real commodity
+                                                commodities.Add(new CommodityAmount(commodity, (int)(long)used.Value));
                                             }
-                                        }
-                                        else if (val is List<object> materialsJson) // 2.3 style
-                                        {
-                                            foreach (Dictionary<string, object> materialJson in materialsJson)
+                                            else
                                             {
-                                                Material material = Material.FromEDName(JsonParsing.getString(materialJson, "Name"));
-                                                materials.Add(new MaterialAmount(material, (int)(long)materialJson["Count"]));
+                                                // Probably a material then
+                                                Material material = Material.FromEDName(used.Key);
+                                                materials.Add(new MaterialAmount(material, (int)(long)used.Value));
                                             }
                                         }
                                     }
-                                events.Add(new ModificationCraftedEvent(timestamp, engineer, engineerId, blueprintpEdName, blueprintId, level, quality, experimentalEffect, materials, commodities, compartment) { raw = line });
-                                    handled = true;
-                                    break;
+                                    else if (val is List<object> materialsJson) // 2.3 style
+                                    {
+                                        foreach (Dictionary<string, object> materialJson in materialsJson)
+                                        {
+                                            Material material = Material.FromEDName(JsonParsing.getString(materialJson, "Name"));
+                                            materials.Add(new MaterialAmount(material, (int)(long)materialJson["Count"]));
+                                        }
+                                    }
                                 }
+                                events.Add(new ModificationCraftedEvent(timestamp, engineer, engineerId, blueprintpEdName, blueprintId, level, quality, experimentalEffect, materials, commodities, compartment) { raw = line });
+                                handled = true;
+                                break;
+                            }
                         case "EngineerProgress":
-                                {
+                            {
                                 data.TryGetValue("Engineers", out object val);
                                 if (val != null)
                                 {
@@ -1869,7 +1895,7 @@ namespace EddiJournalMonitor
                                     {
                                         Engineer engineer = parseEngineer(engineerData);
                                         Engineer.AddOrUpdate(engineer);
-                            }
+                                    }
                                 }
                                 else
                                 {
