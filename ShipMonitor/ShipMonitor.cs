@@ -230,6 +230,10 @@ namespace EddiShipMonitor
             {
                 handleJumpedEvent((JumpedEvent)@event);
             }
+            else if (@event is StatusEvent)
+            {
+                handleStatusEvent((StatusEvent)@event);
+            }
         }
 
         // Set the ship name conditionally, avoiding filtered names
@@ -837,7 +841,17 @@ namespace EddiShipMonitor
             }
         }
 
-            public void PostHandle(Event @event)
+        private void handleStatusEvent(StatusEvent @event)
+        {
+            if (@event.status.current_fuel != null)
+            {
+                Ship ship = GetCurrentShip();
+                ship.fuelremaining = @event.status.current_fuel;
+                writeShips();
+            }
+        }
+
+        public void PostHandle(Event @event)
         {
             if (@event is ShipLoadoutEvent)
             {
