@@ -5,6 +5,7 @@ Full details of the variables available for each noted event, and VoiceAttack in
 ### Development
   * Core
     * Fixed a bug that could reset system comments, visits, and the date last visited while refreshing star system data. 
+    * The `body` object now includes `estimatedhabzoneinner` and `estimatedhabzoneouter` for stars.
   * Material monitor
     * Revised material rarities and default material maxima (material maxima are recalulated to the following values if not set): 
       * (Thargoid) Propulsion Elements (Very Rare - 100 MAX)
@@ -26,6 +27,7 @@ Full details of the variables available for each noted event, and VoiceAttack in
     * `Settlement approached`: Added `latitude` and `longitude`.
     * Added new event `Discovery scan`, triggered when performing a full system scan (honk) with the FSS
     * Added new event `Signal detected`, triggered when a signal source is detected
+    * Fixed very low hab zone values in `Star scanned` events
   * Status monitor 
     * The status object has new values for: 
       * HUD analysis mode, 
