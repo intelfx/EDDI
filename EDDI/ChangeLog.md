@@ -30,6 +30,9 @@ Full details of the variables available for each noted event, and VoiceAttack in
     * Added new event `Discovery scan`, triggered when performing a full system scan (honk) with the FSS
     * Added new event `Signal detected`, triggered when a signal source is detected
     * Fixed very low hab zone values in `Star scanned` events
+    * Revised `Star scanned` event script
+    * Revised `Star report` event script
+    * Added `Star habitable zone` non-event script.
   * Status monitor 
     * The status object has new values for: 
       * HUD analysis mode, 
