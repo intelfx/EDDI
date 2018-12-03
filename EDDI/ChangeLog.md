@@ -29,6 +29,7 @@ Full details of the variables available for each noted event, and VoiceAttack in
     * `Settlement approached`: Added `latitude` and `longitude`.
     * Added new event `Discovery scan`, triggered when performing a full system scan (honk) with the FSS
     * Added new event `Signal detected`, triggered when a signal source is detected
+    * Added new event `Body mapped`, triggered after mapping a body with the Surface Area Analysis scanner
     * Fixed very low hab zone values in `Star scanned` events
     * Revised `Star scanned` event script
     * Revised `Star report` event script
