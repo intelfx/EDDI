@@ -269,14 +269,15 @@ namespace EddiSpeechService
             { "Wredguia", new string[] { Properties.Phonetics.Wredguia } },
         };
 
-        // Various handy regexes so we don't keep recreating them
+        // Regexes for the system name parser
         private static readonly Regex ALPHA_THEN_NUMERIC = new Regex(@"[A-Za-z][0-9]");
-        private static readonly Regex UPPERCASE = new Regex(@"([A-Z]{2,})|(?:([A-Z])(?:\s|$))");
-        private static readonly Regex TEXT = new Regex(@"([A-Za-z]{1,3}(?:\s|$))");
-        private static readonly Regex DIGIT = new Regex(@"\d+(?:\s|$)");
-        private static readonly Regex THREE_OR_MORE_DIGITS = new Regex(@"\d{3,}");
-        private static readonly Regex DECIMAL_DIGITS = new Regex(@"( point )(\d{2,})");
-        private static readonly Regex SECTOR = new Regex("(.*) ([A-Za-z][A-Za-z]-[A-Za-z] .*)");
+        private static readonly Regex NUMERIC_THEN_ALPHA = new Regex(@"[0-9][A-Za-z]");
+        private static readonly Regex UPPERCASE = new Regex(@"\b[A-Z]{2,}\b");
+        private static readonly Regex NUMBERS = new Regex(@"\b[0-9]+\b");
+        private static readonly Regex DECIMAL_DIGITS = new Regex(@"(?<= point )[0-9]{2,}\b");
+        private static readonly Regex ALPHA_SINGLE = new Regex(@"\b[A-Za-z]\b");
+        private static readonly Regex ALNUM_WORD = new Regex(@"\b\w*([0-9][A-Za-z]|[A-Za-z][0-9])\w*\b");
+        private static readonly Regex SECTOR = new Regex(@"(.*) ([A-Za-z][A-Za-z]-[A-Za-z]) ([A-Za-z])([0-9-]+)");
 
         // Regexes for the body name parser
         private static readonly string G_INDEX_ALPHA = @"[A-Z]";
@@ -398,6 +399,11 @@ namespace EddiSpeechService
                 return null;
             }
 
+            // This parser is non-strict and opportunistic, so we will need to check if we did
+            // any significant replacements and skip applying final fix-ups if that's not the case,
+            // so that P() can detect a non-match and attempt to apply other translations.
+            string originalStarSystem = starSystem;
+
             // Specific fixing of names to avoid later confusion
             if (STAR_SYSTEM_FIXES.ContainsKey(starSystem))
             {
@@ -409,6 +415,8 @@ namespace EddiSpeechService
             {
                 return replaceWithPronunciation(starSystem, STAR_SYSTEM_PRONUNCIATIONS[starSystem]);
             }
+
+            List<string> pieces = new List<string>();
 
             // Common star catalogues
             if (starSystem.StartsWith("HIP"))
@@ -439,10 +447,10 @@ namespace EddiSpeechService
             {
                 // Generated star systems
                 // Need to handle the pieces before and after the sector marker separately
-                Match Match = SECTOR.Match(starSystem);
+                var match = SECTOR.Match(starSystem);
 
                 // Fix common names
-                string sectorName = Match.Groups[1].Value
+                string sectorName = match.Groups[1].Value
                     .Replace("Col ", "Coll ")
                     .Replace("R CrA ", "R CRA ")
                     .Replace("Tr ", "TR ")
@@ -465,13 +473,23 @@ namespace EddiSpeechService
                 // Translate sector name
                 sectorName = lookupPronunciation(sectorName, CONSTELLATION_PRONUNCIATIONS);
 
-                string sectorIndex = Match.Groups[2].Value;
-                if (useICAO)
+                // Spell out sector indices
+                void spellOutSectorIndices(string s)
                 {
-                    sectorIndex = ICAO(sectorIndex, true);
+                    foreach(var piece in s.Split('-'))
+                    {
+                        pieces.Add(spellOut(piece, useICAO, SpellOutFlags.SmartNumbers));
+                        pieces.Add("<break strength=\"x-weak\" time=\"25ms\" />");
+                    }
+                    pieces.RemoveAt(pieces.Count - 1); // remove the last separator, FIXME ugly
                 }
-                sectorIndex = sectorIndex.Replace("-", " " + Properties.Phrases.dash + " ");
-                starSystem = sectorName + sectorNameTail + " " + sectorIndex;
+
+                pieces.Add(sectorName + sectorNameTail);
+                pieces.Add("<break strength=\"weak\" time=\"100ms\" />");
+                spellOutSectorIndices(match.Groups[2].Value);
+                pieces.Add("<break strength=\"weak\" time=\"100ms\" />");
+                pieces.Add(spellOut(match.Groups[3].Value, useICAO));
+                spellOutSectorIndices(match.Groups[4].Value);
             }
             else if (starSystem.StartsWith("2MASS ")
                 || starSystem.StartsWith("AC ")
@@ -503,24 +521,63 @@ namespace EddiSpeechService
             else
             {
                 // It's possible that the name contains a constellation, in which case translate it
-                string[] pieces = starSystem.Split(' ');
-                var translated = pieces.Select(x => lookupPronunciation(x, CONSTELLATION_PRONUNCIATIONS));
-                starSystem = string.Join(" ", translated);
+                string[] words = starSystem.Split(' ');
+                words = words.Select(x => lookupPronunciation(x, CONSTELLATION_PRONUNCIATIONS)).ToArray();
+                starSystem = string.Join(" ", words);
             }
 
-            // Any string of an alpha followd by a numeric is broken up
-            starSystem = ALPHA_THEN_NUMERIC.Replace(starSystem, match => useICAO ? ICAO(match.Value, true) : string.Join<char>(" ", match.Value));
+            // If pieces haven't been populated, the input string was updated in-place. Insert it as the single piece.
+            if (pieces.Count == 0)
+            {
+                pieces.Add(starSystem);
+            }
 
-            // Fix up digit strings
-            // Any digits after a decimal point are broken in to individual digits
-            starSystem = DECIMAL_DIGITS.Replace(starSystem, match => match.Groups[1].Value + string.Join<char>(" ", useICAO ? ICAO(match.Groups[2].Value, true) : match.Groups[2].Value));
-            // Any string of more than two digits is broken up in to individual digits
-            starSystem = THREE_OR_MORE_DIGITS.Replace(starSystem, match => useICAO ? ICAO(match.Value, true) : string.Join<char>(" ", match.Value));
+            // Apply last-minute fixups to spell out any hard to pronounce or unnatural words.
+            // In order to avoid "fixing up" words that in fact are previously added SSML tags, we skip pieces that look like tags.
+            //
+            // Ideally, every fixup in this function should generate its own pieces for the very same reason, but code gets too complicated,
+            // hence for now we're inserting SSML tags in place. This means we need to be very careful with order of fixups in this function.
+            string fixupPiece(string s)
+            {
+                // Is it an SSML tag?
+                if (s.StartsWith("<"))
+                {
+                    return s;
+                }
+                // Pieces must not contain SSML tags in the middle of them (that's the whole point of pieces).
+                Debug.Assert(!s.Contains('<'));
 
-            // Any string of upper-case letters is broken up to avoid issues such as 'DR' being pronounced as 'Doctor'
-            starSystem = UPPERCASE.Replace(starSystem, match => useICAO ? ICAO(match.Value, true) : string.Join<char>(" ", match.Value));
+                // Spell out standalone letters (goes first because otherwise we'll catch all the spelled out letters)
+                s = ALPHA_SINGLE.Replace(s, match => spellOut(match.Value, useICAO));
 
-            return Regex.Replace(starSystem, @"\s+", " ");
+                // Spell out any word containing both letters and digits
+                s = ALNUM_WORD.Replace(s, match => spellOut(match.Value, useICAO, SpellOutFlags.IgnoreNumbers));
+
+                // Spell out any words of 2 or more uppercase letters (abbreviations)
+                s = UPPERCASE.Replace(s, match => spellOut(match.Value, useICAO));
+
+                // Spell out numbers
+                s = NUMBERS.Replace(s, match => spellOut(match.Value, useICAO, SpellOutFlags.SmartNumbers));
+
+                /*
+                // Spell out any digits after a decimal point
+                s = DECIMAL_DIGITS.Replace(s, match => spellOut(match.Value, useICAO, SpellOutFlags.IgnoreNumbers));
+                */
+
+                return s;
+            }
+            pieces = pieces.Select(fixupPiece).ToList();
+
+            // Bail out if we have not made any significant replacements to signal a non-match to P().
+            if (pieces.Count == 1 && pieces[0] == originalStarSystem)
+            {
+                return originalStarSystem;
+            }
+
+            starSystem = string.Join(" ", pieces);
+
+            // Double-quote the whole result -- this helps with prosody
+            return "\"" + Regex.Replace(starSystem, @"\s+", " ") + "\"";
         }
 
         /// <summary>Fix up station related pronunciations </summary>
