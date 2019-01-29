@@ -370,6 +370,11 @@ namespace EddiSpeechService
                             Logging.Debug("Working around CereVoice SSML support");
                             synth.Speak(speech);
                         }
+                        else if (synth.Voice.Name.Contains("IVONA"))
+                        {
+                            Logging.Debug("Working around IVONA SSML support");
+                            synth.Speak(speech);
+                        }
                         else
                         {
                             synth.SpeakSsml(speech);
