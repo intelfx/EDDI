@@ -478,6 +478,8 @@ namespace EddiSpeechService
 
         private string escapeSsml(string text)
         {
+            return text;
+
             // Our input text might have SSML elements in it but the rest needs escaping
             string result = text;
 
