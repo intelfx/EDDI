@@ -375,7 +375,7 @@ namespace EddiSpeechService
                 Match Match = SECTOR.Match(starSystem);
 
                 // Fix common names
-                string firstPiece = Match.Groups[1].Value
+                string sectorName = Match.Groups[1].Value
                     .Replace("Col ", "Coll ")
                     .Replace("R CrA ", "R CRA ")
                     .Replace("Tr ", "TR ")
@@ -383,31 +383,31 @@ namespace EddiSpeechService
                     .Replace("(", "").Replace(")", "");
 
                 // Various items between the sector name and 'Sector' need to be removed to allow us to find the base pronunciation
-                string subPiece = "";
-                if (firstPiece.EndsWith(" Dark Region B Sector"))
+                string sectorNameTail = "";
+                if (sectorName.EndsWith(" Dark Region B Sector"))
                 {
-                    firstPiece = firstPiece.Replace(" Dark Region B Sector", "");
-                    subPiece = " Dark Region B Sector";
+                    sectorName = sectorName.Replace(" Dark Region B Sector", "");
+                    sectorNameTail = " Dark Region B Sector";
                 }
-                else if (firstPiece.EndsWith(" Sector"))
+                else if (sectorName.EndsWith(" Sector"))
                 {
-                    firstPiece = firstPiece.Replace(" Sector", "");
-                    subPiece = " Sector";
+                    sectorName = sectorName.Replace(" Sector", "");
+                    sectorNameTail = " Sector";
                 }
 
                 // Might be a name that we need to translate
-                if (CONSTELLATION_PRONUNCIATIONS.ContainsKey(firstPiece))
+                if (CONSTELLATION_PRONUNCIATIONS.ContainsKey(sectorName))
                 {
-                    firstPiece = replaceWithPronunciation(firstPiece, CONSTELLATION_PRONUNCIATIONS[firstPiece]);
+                    sectorName = replaceWithPronunciation(sectorName, CONSTELLATION_PRONUNCIATIONS[sectorName]);
                 }
 
-                string secondPiece = Match.Groups[2].Value;
+                string sectorIndex = Match.Groups[2].Value;
                 if (useICAO)
                 {
-                    secondPiece = ICAO(secondPiece, true);
+                    sectorIndex = ICAO(sectorIndex, true);
                 }
-                secondPiece = secondPiece.Replace("-", " " + Properties.Phrases.dash + " ");
-                starSystem = firstPiece + subPiece + " " + secondPiece;
+                sectorIndex = sectorIndex.Replace("-", " " + Properties.Phrases.dash + " ");
+                starSystem = sectorName + sectorNameTail + " " + sectorIndex;
             }
             else if (starSystem.StartsWith("2MASS ")
                 || starSystem.StartsWith("AC ")
