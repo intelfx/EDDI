@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using Utilities;
 
 namespace EddiSpeechService
 {
@@ -220,10 +221,21 @@ namespace EddiSpeechService
         private static readonly Regex THREE_OR_MORE_DIGITS = new Regex(@"\d{3,}");
         private static readonly Regex DECIMAL_DIGITS = new Regex(@"( point )(\d{2,})");
         private static readonly Regex SECTOR = new Regex("(.*) ([A-Za-z][A-Za-z]-[A-Za-z] .*)");
-        private static readonly Regex PLANET = new Regex(@"^[A-Za-z]$");
-        private static readonly Regex SUBSTARS = new Regex(@"^A[BCDE]?[CDE]?[DE]?[E]?|B[CDE]?[DE]?[E]?|C[DE]?[E]?|D[E]?$");
-        private static readonly Regex BODY = new Regex(@"^(.*?) ([A-E]+ ){0,2}(Belt(?:\s|$)|Cluster(?:\s|$)|Ring|\d{1,2}(?:\s|$)|[A-Za-z](?:\s|$)){1,12}$", RegexOptions.IgnoreCase);
-        
+
+        // Regexes for the body name parser
+        private static readonly string G_INDEX_ALPHA = @"([A-Z])";
+        private static readonly string G_INDEX_NUMBER = @"([0-9]{1,2})";
+        private static readonly string G_BELT = $@"(?:{G_INDEX_ALPHA} (Belt))";
+        private static readonly string G_RING = $@"(?:{G_INDEX_ALPHA} (Ring))";
+        private static readonly string G_CLUSTER = $@"(?:(Cluster) {G_INDEX_NUMBER})";
+        private static readonly string G_STAR = @"([A-E])";
+        private static readonly string G_MULTISTAR = @"(?=[A-E])(A?B?C?D?E?)"; // was: @"^A[BCDE]?[CDE]?[DE]?[E]?|B[CDE]?[DE]?[E]?|C[DE]?[E]?|D[E]?$"
+        private static readonly string G_PLANET = @"([0-9]{1,2})";
+        private static readonly string G_MOON = @"([a-z])";
+        private static readonly string G_NONPLANET = $@"(?:{G_RING}|{G_BELT}|{G_BELT} {G_CLUSTER})";
+        private static readonly Regex BODY = new Regex($@"(?:{G_STAR}|{G_MULTISTAR}(?: {G_PLANET}(?: {G_MOON})+)?)(?: {G_NONPLANET})?$");
+        private static readonly Regex BODY_INDEX = new Regex($@"^(?:{G_STAR}|{G_MULTISTAR}|{G_PLANET}|{G_MOON}|{G_INDEX_ALPHA}|{G_INDEX_NUMBER})$");
+
         /// <summary>Fix up faction names</summary>
         public static string Faction(string faction)
         {
@@ -254,6 +266,8 @@ namespace EddiSpeechService
         /// <summary>Fix up body names</summary>
         public static string Body(string body, bool useICAO = false)
         {
+            // e.g. "Pru Aescs NC-M d7-192 A A Belt", "Prai Flyou JQ-F b30-3 B Belt Cluster 9", "Oopailks NV-X c17-1 AB 6 A Ring"
+
             if (body == null)
             {
                 return null;
@@ -261,80 +275,38 @@ namespace EddiSpeechService
 
             List<string> results = new List<string>();
 
-            // Use a regex to break apart the body from the system
+            // @BODY regex is strict and anchored to the end of the input; use this to separate the body from the system.
             Match match = BODY.Match(body);
             if (!match.Success)
             {
-                // There was no match so we pass this as-is
+                // No match at all -- don't bother
                 return body;
             }
-            else
+            List<string> bodyPieces = Util.FlattenMatch(match);
+
+            // Translate the system name if it is present
+            if (body.Length != match.Length)
             {
-                // Parse the starsystem
-                results.Add(StarSystem(match.Groups[1].Value.Trim(), useICAO));
-                // Parse the body
-                for (int i = 2; i < match.Groups.Count; i++)
-                {
-                    for (int j = 0; j < match.Groups[i].Captures.Count; j++)
-                    {
-                        var part = match.Groups[i].Captures[j].Value.Trim();
-                        var lastPart = j > 0 ? match.Groups[i].Captures[j - 1].Value.Trim()
-                            : i > 2 && match.Groups[i - 1].Captures.Count > 0 ? match.Groups[i - 1].Captures[match.Groups[i - 1].Captures.Count - 1].Value.Trim()
-                            : null;
-                        var nextPart = j < match.Groups[i].Captures.Count - 1 ? match.Groups[i].Captures[j + 1].Value.Trim()
-                            : i < match.Groups.Count - 1 ? match.Groups[i + 1].Captures[0].Value.Trim()
-                            : null;
-
-                        if (DIGIT.IsMatch(part))
-                        {
-                            // The part is a number; turn it in to ICAO if required
-                            results.Add(useICAO ? ICAO(part, true) : part);
-                        }
-                        else if (PLANET.IsMatch(part) || lastPart == "Cluster" || nextPart == "Ring" || nextPart == "Belt" )
-                        {
-                            // The part represents a body, possibly part of the name of a moon, ring, (stellar) belt, or belt cluster; 
-                            // e.g. "Pru Aescs NC-M d7-192 A A Belt", "Prai Flyou JQ-F b30-3 B Belt Cluster 9", "Oopailks NV-X c17-1 AB 6 A Ring"
-
-                            // turn it in to ICAO if required
-                            if (useICAO)
-                            {
-                                results.Add(ICAO(part, true));
-                            }
-                            else
-                            {
-                                results.Add(sayAsLettersOrNumbers(part));
-                            }
-                        }
-                        else if (part == "Belt" || part == "Cluster" || part == "Ring")
-                        {
-                            // Pass as-is
-                            results.Add(part);
-                        }
-                        else if (SUBSTARS.IsMatch(part))
-                        {
-                            // The part is uppercase; turn it in to ICAO if required
-                            results.Add(UPPERCASE.Replace(part, m => useICAO ? ICAO(m.Value, true) : string.Join<char>(" ", m.Value)));
-                        }
-                        else if (TEXT.IsMatch(part))
-                        {
-                            // turn it in to ICAO if required
-                            if (useICAO)
-                            {
-                                results.Add(ICAO(part));
-                            }
-                            else
-                            {
-                                results.Add(sayAsLettersOrNumbers(part));
-                            }
-                        }
-                        else
-                        {
-                            // Pass it as-is
-                            results.Add(part);
-                        }
-                    }
-                }
+                string system = body.Substring(0, body.Length - match.Length).Trim();
+                results.Add(StarSystem(system, useICAO));
+                results.Add("<break strength=\"weak\" time=\"100ms\" />");
             }
+
+            // Translate the body name itself
+            // TODO: join adjacent indices, so that e. g. body "1 a b c" ends up under a single <say-as>
+            string fixupPiece(string piece)
+            {
+                if (BODY_INDEX.IsMatch(piece))
+                {
+                    // This part is an alphabetic or numeric index, spell it out
+                    return spellOut(piece, useICAO, SpellOutFlags.None);
+                }
+                // Otherwise, it must be an actual word ("Belt", "Cluster", "Ring"), pass it as-is
+                return piece;
+            }
+            var bodyPiecesFixed = bodyPieces.Select(fixupPiece);
+            // Double-quote the whole result -- this helps with prosody
+            results.Add("\"" + string.Join(" ", bodyPiecesFixed) + "\"");
 
             return Regex.Replace(string.Join(" ", results), @"\s+", " ");
         }
@@ -657,14 +629,34 @@ namespace EddiSpeechService
             return String.Join(" ", elements).Trim();
         }
 
-        public static string sayAsLettersOrNumbers(string part)
+        [Flags]
+        private enum SpellOutFlags
         {
-            if (int.TryParse(part, out _))
+            None = 0x0b,
+            PassDash = 0x1b,
+            IgnoreNumbers = 0x10b,
+            SmartNumbers = 0x100b, // only pronounce as a number if it's small enough (< 100), otherwise spell out
+        }
+
+        private static string spellOut(string part, bool useICAO, SpellOutFlags flags = SpellOutFlags.None)
+        {
+            if (useICAO)
+            {
+                return ICAO(part, flags.HasFlag(SpellOutFlags.PassDash));
+            }
+            else if (!flags.HasFlag(SpellOutFlags.IgnoreNumbers)
+                  && int.TryParse(part, out int number)
+                  && (!flags.HasFlag(SpellOutFlags.SmartNumbers) || Math.Abs(number) < 100))
             {
                 return @"<say-as interpret-as=""number"">" + part + @"</say-as>";
             }
             else
             {
+                if (!flags.HasFlag(SpellOutFlags.PassDash))
+                {
+                    part = part.Replace("-", "");
+                }
+                part = string.Join<char>(" ", part);
                 return @"<say-as interpret-as=""characters"">" + part + @"</say-as>";
             }
         }
