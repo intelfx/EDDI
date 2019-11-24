@@ -44,6 +44,14 @@ namespace EddiSpeechService
             }
             if (translation == val)
             {
+                translation = Faction(val);
+            }
+            if (translation == val)
+            {
+                translation = Station(val);
+            }
+            if (translation == val)
+            {
                 translation = Body(val, useICAO);
             }
             if (translation == val)
@@ -52,11 +60,7 @@ namespace EddiSpeechService
             }
             if (translation == val)
             {
-                translation = Station(val);
-            }
-            if (translation == val)
-            {
-                translation = Faction(val);
+                translation = FactionMisc(val);
             }
             return translation.Trim();
         }
@@ -275,7 +279,7 @@ namespace EddiSpeechService
         private static readonly Regex SUBSTARS = new Regex(@"^A[BCDE]?[CDE]?[DE]?[E]?|B[CDE]?[DE]?[E]?|C[DE]?[E]?|D[E]?$");
         private static readonly Regex BODY = new Regex(@"^(.*?) ([A-E]+ ){0,2}(Belt(?:\s|$)|Cluster(?:\s|$)|Ring|\d{1,2}(?:\s|$)|[A-Za-z](?:\s|$)){1,12}$", RegexOptions.IgnoreCase);
 
-        /// <summary>Fix up faction names</summary>
+        /// <summary>Fix up faction names (strict)</summary>
         public static string Faction(string faction)
         {
             if (faction == null)
@@ -287,6 +291,17 @@ namespace EddiSpeechService
             if (FACTION_FIXES.ContainsKey(faction))
             {
                 faction = FACTION_FIXES[faction];
+            }
+
+            return faction;
+        }
+
+        /// <summary>Fix up faction names (non-strict)</summary>
+        public static string FactionMisc(string faction)
+        {
+            if (faction == null)
+            {
+                return null;
             }
 
             // Faction names can contain system names; hunt them down and change them
