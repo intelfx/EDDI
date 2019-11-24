@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Utilities;
+using System.Linq;
 
 namespace EddiSpeechService
 {
@@ -395,11 +396,8 @@ namespace EddiSpeechService
                     sectorNameTail = " Sector";
                 }
 
-                // Might be a name that we need to translate
-                if (CONSTELLATION_PRONUNCIATIONS.ContainsKey(sectorName))
-                {
-                    sectorName = replaceWithPronunciation(sectorName, CONSTELLATION_PRONUNCIATIONS[sectorName]);
-                }
+                // Translate sector name
+                sectorName = lookupPronunciation(sectorName, CONSTELLATION_PRONUNCIATIONS);
 
                 string sectorIndex = Match.Groups[2].Value;
                 if (useICAO)
@@ -440,14 +438,8 @@ namespace EddiSpeechService
             {
                 // It's possible that the name contains a constellation, in which case translate it
                 string[] pieces = starSystem.Split(' ');
-                for (int i = 0; i < pieces.Length; i++)
-                {
-                    if (CONSTELLATION_PRONUNCIATIONS.ContainsKey(pieces[i]))
-                    {
-                        pieces[i] = replaceWithPronunciation(pieces[i], CONSTELLATION_PRONUNCIATIONS[pieces[i]]);
-                    }
-                }
-                starSystem = string.Join(" ", pieces);
+                var translated = pieces.Select(x => lookupPronunciation(x, CONSTELLATION_PRONUNCIATIONS));
+                starSystem = string.Join(" ", translated);
             }
 
             // Any string of an alpha followd by a numeric is broken up
