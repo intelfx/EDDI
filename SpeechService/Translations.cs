@@ -514,6 +514,16 @@ namespace EddiSpeechService
             return sb.ToString();
         }
 
+        private static string lookupPronunciation(string sourcePhrase, Dictionary<string, string[]> dictionary)
+        {
+            string[] pronunciation;
+            if (dictionary.TryGetValue(sourcePhrase, out pronunciation))
+            {
+                return replaceWithPronunciation(sourcePhrase, pronunciation);
+            }
+            return sourcePhrase;
+        }
+
         public static string ICAO(string callsign, bool passDash = false)
         {
             if (callsign == null)
