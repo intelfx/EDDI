@@ -185,22 +185,6 @@ namespace EddiSpeechResponder
                 }
                 if (translation == val)
                 {
-                    translation = Translations.Body(val, useICAO);
-                }
-                if (translation == val)
-                {
-                    translation = Translations.StarSystem(val, useICAO);
-                }
-                if (translation == val)
-                {
-                    translation = Translations.Station(val);
-                }
-                if (translation == val)
-                {
-                    translation = Translations.Faction(val);
-                }
-                if (translation == val)
-                {
                     translation = Translations.Power(val);
                 }
                 if (translation == val)
@@ -218,6 +202,22 @@ namespace EddiSpeechResponder
                     {
                         translation = ship.SpokenModel();
                     }
+                }
+                if (translation == val)
+                {
+                    translation = Translations.Station(val);
+                }
+                if (translation == val)
+                {
+                    translation = Translations.Body(val, useICAO);
+                }
+                if (translation == val)
+                {
+                    translation = Translations.StarSystem(val, useICAO);
+                }
+                if (translation == val)
+                {
+                    translation = Translations.Faction(val);
                 }
                 return translation;
             }, 1);
