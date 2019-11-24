@@ -429,7 +429,7 @@ namespace EddiSpeechService
                 )
             {
                 // Star systems with +/- (and sometimes .)
-                starSystem = starSystem.Replace("Csi ", "CSI ")
+                starSystem = starSystem.Replace("Csi", "CSI")
                                        .Replace("WISE ", "Wise ")
                                        .Replace("2MASS ", "2 mass ")
                                        .Replace("+", " " + Properties.Phrases.plus + " ")
