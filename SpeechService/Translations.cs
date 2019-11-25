@@ -278,18 +278,17 @@ namespace EddiSpeechService
         private static readonly Regex SECTOR = new Regex("(.*) ([A-Za-z][A-Za-z]-[A-Za-z] .*)");
 
         // Regexes for the body name parser
-        private static readonly string G_INDEX_ALPHA = @"([A-Z])";
-        private static readonly string G_INDEX_NUMBER = @"([0-9]{1,2})";
-        private static readonly string G_BELT = $@"(?:{G_INDEX_ALPHA} (Belt))";
-        private static readonly string G_RING = $@"(?:{G_INDEX_ALPHA} (Ring))";
-        private static readonly string G_CLUSTER = $@"(?:(Cluster) {G_INDEX_NUMBER})";
-        private static readonly string G_STAR = @"([A-E])";
-        private static readonly string G_MULTISTAR = @"(?=[A-E])(A?B?C?D?E?)"; // was: @"^A[BCDE]?[CDE]?[DE]?[E]?|B[CDE]?[DE]?[E]?|C[DE]?[E]?|D[E]?$"
-        private static readonly string G_PLANET = @"([0-9]{1,2})";
-        private static readonly string G_MOON = @"([a-z])";
-        private static readonly string G_NONPLANET = $@"(?:{G_RING}|{G_BELT}|{G_BELT} {G_CLUSTER})";
-        private static readonly Regex BODY = new Regex($@"(?:{G_STAR}|{G_MULTISTAR}(?: {G_PLANET}(?: {G_MOON})+)?)(?: {G_NONPLANET})?$");
-        private static readonly Regex BODY_INDEX = new Regex($@"^(?:{G_STAR}|{G_MULTISTAR}|{G_PLANET}|{G_MOON}|{G_INDEX_ALPHA}|{G_INDEX_NUMBER})$");
+        private static readonly string G_INDEX_ALPHA = @"[A-Z]";
+        private static readonly string G_INDEX_NUMBER = @"[0-9]{1,2}";
+        private static readonly string G_STAR = @"[A-E]";
+        private static readonly string G_MULTISTAR = @"(?=[A-E])A?B?C?D?E?"; // was: @"^A[BCDE]?[CDE]?[DE]?[E]?|B[CDE]?[DE]?[E]?|C[DE]?[E]?|D[E]?$"
+        private static readonly string G_PLANET = @"[0-9]{1,2}";
+        private static readonly string G_MOON = @"[a-z]";
+        private static readonly string G_BELT = $@"((?<belt>{G_INDEX_ALPHA}) Belt)";
+        private static readonly string G_RING = $@"((?<ring>{G_INDEX_ALPHA}) Ring)";
+        private static readonly string G_CLUSTER = $@"(Cluster (?<cluster>{G_INDEX_NUMBER}))";
+        private static readonly string G_ASTEROIDS = $@"({G_RING}|{G_BELT}|{G_BELT} {G_CLUSTER})";
+        private static readonly Regex BODY = new Regex($@"\b((?<star>{G_STAR})( {G_ASTEROIDS})?|((?<star>{G_MULTISTAR}) )?(?<planet>{G_PLANET}( {G_MOON})*)( {G_ASTEROIDS})?)$", RegexOptions.ExplicitCapture);
 
         /// <summary>Fix up faction names (strict)</summary>
         public static string Faction(string faction)
@@ -339,7 +338,7 @@ namespace EddiSpeechService
                 return null;
             }
 
-            List<string> results = new List<string>();
+            List<string> systemBodyPieces = new List<string>();
 
             // @BODY regex is strict and anchored to the end of the input; use this to separate the body from the system.
             Match match = BODY.Match(body);
@@ -348,33 +347,46 @@ namespace EddiSpeechService
                 // No match at all -- don't bother
                 return body;
             }
-            List<string> bodyPieces = Util.FlattenMatch(match);
 
             // Translate the system name if it is present
             if (body.Length != match.Length)
             {
                 string system = body.Substring(0, body.Length - match.Length).Trim();
-                results.Add(StarSystem(system, useICAO));
-                results.Add("<break strength=\"weak\" time=\"100ms\" />");
+                systemBodyPieces.Add(StarSystem(system, useICAO).Trim(new char[] { '"' }));
+                systemBodyPieces.Add("<break strength=\"weak\" time=\"100ms\" />");
             }
 
             // Translate the body name itself
-            // TODO: join adjacent indices, so that e. g. body "1 a b c" ends up under a single <say-as>
-            string fixupPiece(string piece)
+            List<string> bodyPieces = new List<string>();
+            if (match.Groups["star"].Success)
             {
-                if (BODY_INDEX.IsMatch(piece))
-                {
-                    // This part is an alphabetic or numeric index, spell it out
-                    return spellOut(piece, useICAO, SpellOutFlags.None);
-                }
-                // Otherwise, it must be an actual word ("Belt", "Cluster", "Ring"), pass it as-is
-                return piece;
+                bodyPieces.Add(spellOut(match.Groups["star"].Value, useICAO));
             }
-            var bodyPiecesFixed = bodyPieces.Select(fixupPiece);
-            // Double-quote the whole result -- this helps with prosody
-            results.Add("\"" + string.Join(" ", bodyPiecesFixed) + "\"");
+            if (match.Groups["planet"].Success)
+            {
+                bodyPieces.Add(spellOut(match.Groups["planet"].Value, useICAO));
+            }
+            if (match.Groups["ring"].Success)
+            {
+                bodyPieces.Add("<break strength=\"x-weak\" time=\"25ms\" />");
+                bodyPieces.Add(spellOut(match.Groups["ring"].Value, useICAO));
+                bodyPieces.Add("Ring");
+            }
+            if (match.Groups["belt"].Success)
+            {
+                bodyPieces.Add("<break strength=\"x-weak\" time=\"25ms\" />");
+                bodyPieces.Add(spellOut(match.Groups["belt"].Value, useICAO));
+                bodyPieces.Add("Belt");
+            }
+            if (match.Groups["cluster"].Success)
+            {
+                bodyPieces.Add("Cluster");
+                bodyPieces.Add(spellOut(match.Groups["cluster"].Value, useICAO));
+            }
+            systemBodyPieces.Add(string.Join(" ", bodyPieces));
 
-            return Regex.Replace(string.Join(" ", results), @"\s+", " ");
+            // Double-quote the whole result (helps with pronunciation)
+            return "\"" + Regex.Replace(string.Join(" ", systemBodyPieces), @"\s+", " ") + "\"";
         }
 
         /// <summary>Fix up star system names</summary>
