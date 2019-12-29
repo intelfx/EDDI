@@ -53,7 +53,7 @@ namespace EddiSpeechService
         private static readonly Dictionary<string, string> STAR_SYSTEM_FIXES = new Dictionary<string, string>()
         {
             { "VESPER-M4", "Vesper M 4" }, // Stop Vesper being treated as a sector
-            { "Sagittarius A*", "Sagittarius " + sayAsLettersOrNumbers("A") + " Star" }, // Allow the * to be parsed out
+            { "Sagittarius A*", "Sagittarius " + spellOut("A", false) + " Star" }, // Allow the * to be parsed out
         };
 
         // Fixes to avoid issues with pronunciation of station model names
@@ -691,7 +691,7 @@ namespace EddiSpeechService
         }
 
         [Flags]
-        private enum SpellOutFlags
+        public enum SpellOutFlags
         {
             None = 0x0b,
             PassDash = 0x1b,
@@ -699,7 +699,7 @@ namespace EddiSpeechService
             SmartNumbers = 0x100b, // only pronounce as a number if it's small enough (< 100), otherwise spell out
         }
 
-        private static string spellOut(string part, bool useICAO, SpellOutFlags flags = SpellOutFlags.None)
+        public static string spellOut(string part, bool useICAO, SpellOutFlags flags = SpellOutFlags.None)
         {
             if (useICAO)
             {
