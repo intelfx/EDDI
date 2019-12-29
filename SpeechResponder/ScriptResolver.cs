@@ -291,7 +291,7 @@ namespace EddiSpeechResponder
 
                 if (useSSML)
                 {
-                    return Translations.sayAsLettersOrNumbers(values[0].AsString);
+                    return Translations.spellOut(values[0].AsString, useICAO);
                 }
                 else
                 {
