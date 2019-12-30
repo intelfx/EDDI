@@ -415,6 +415,10 @@ namespace EddiStatusMonitor
                 {
                     EDDI.Instance.enqueueEvent(new ShipLightsEvent(thisStatus.timestamp, thisStatus.lights_on));
                 }
+                if (thisStatus.flight_assist_off != lastStatus.flight_assist_off)
+                {
+                    EDDI.Instance.enqueueEvent(new FlightAssistEvent(thisStatus.timestamp, !thisStatus.flight_assist_off));
+                }
                 if (gliding && thisStatus.fsd_status == "cooldown")
                 {
                     gliding = false;
