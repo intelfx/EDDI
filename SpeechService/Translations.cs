@@ -723,6 +723,7 @@ namespace EddiSpeechService
             return String.Join(" ", elements).Trim();
         }
 
+        // FIXME: port all uses to spellOut() and drop this
         public static string sayAsLettersOrNumbers(string part)
         {
             StringBuilder sb = new StringBuilder();
@@ -743,6 +744,38 @@ namespace EddiSpeechService
                 }
             }
             return sb.ToString();
+        }
+
+        [Flags]
+        private enum SpellOutFlags
+        {
+            None = 0x0b,
+            PassDash = 0x1b,
+            IgnoreNumbers = 0x10b,
+            SmartNumbers = 0x100b, // only pronounce as a number if it's small enough (< 100), otherwise spell out
+        }
+
+        private static string spellOut(string part, bool useICAO, SpellOutFlags flags = SpellOutFlags.None)
+        {
+            if (useICAO)
+            {
+                return ICAO(part, flags.HasFlag(SpellOutFlags.PassDash));
+            }
+            else if (!flags.HasFlag(SpellOutFlags.IgnoreNumbers)
+                  && int.TryParse(part, out int number)
+                  && (!flags.HasFlag(SpellOutFlags.SmartNumbers) || Math.Abs(number) < 100))
+            {
+                return @"<say-as interpret-as=""number"">" + part + @"</say-as>";
+            }
+            else
+            {
+                if (!flags.HasFlag(SpellOutFlags.PassDash))
+                {
+                    part = part.Replace("-", "");
+                }
+                part = string.Join<char>(" ", part);
+                return @"<say-as interpret-as=""characters"">" + part + @"</say-as>";
+            }
         }
 
         private static (int number, int nextDigit) Normalize(decimal? value, decimal order)
