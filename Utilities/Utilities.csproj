@@ -95,6 +95,7 @@
     <Compile Include="IpaResources.xaml.cs">
       <DependentUpon>IpaResources.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Util.cs" />
     <Compile Include="ObjectExtensions.cs" />
     <Compile Include="Probability.cs" />
     <Compile Include="Constants.cs" />
@@ -152,7 +153,7 @@
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\GitInfo.2.0.10\build\GitInfo.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GitInfo.2.0.10\build\GitInfo.targets'))" />
   </Target>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
