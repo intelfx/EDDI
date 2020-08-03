@@ -122,7 +122,8 @@ namespace EddiSpeechService
         private static readonly Dictionary<string, string> FACTION_FIXES = new Dictionary<string, string>()
         {
             { "SCORPIONS ORDER", "Scorpions Order" }, // Stop it being treated as a sector
-            { "Federation Unite!", "Federation Unite"} // Stop pausing at the end of Unite!
+            { "Federation Unite!", "Federation Unite"}, // Stop pausing at the end of Unite!
+            { "MOBIUS COLONIAL REPUBLIC NAVY", "Mobius Colonial Republic Navy" },
         };
 
         private static readonly Dictionary<string, string[]> STAR_SYSTEM_PRONUNCIATIONS = new Dictionary<string, string[]>()
